@@ -120,8 +120,13 @@ answers whether `fallback` can safely become the default, but it is not a mode
 to run a working setup on. Note that `-force-success` needs an explicit value;
 bare `-force-success` is a usage error rather than a guessed mode.
 
-Whether a console accepts the generic reply is title-dependent — **please report
-results.**
+**Known limits.** Whether a console accepts the generic reply is title-dependent.
+Titles whose DNAS library is **2.80, 3.00 or 3.01 do not authenticate** with
+`success.raw` (tested on real hardware); the workaround is useful only for
+lower DNAS versions. Those versions evidently check more of the reply than a
+generic packet carries — most likely the encrypted 0x148-byte connect reply with
+its request-derived 3DES regions, which `success.raw` skips by design. Results
+for other versions and titles are still welcome — **please report them.**
 
 ## Logging
 
