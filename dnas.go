@@ -111,19 +111,21 @@ func loadPacket(gwDir, name string) ([]byte, error) {
 
 // Query-type byte 1 names the DNAS operation: 0x10 is the install
 // authentication a title runs before it saves DNAS-encrypted data, 0x18 the
-// normal (net start) authentication. A real install reply, connect or
-// others, is the normal reply with byte 1 set to 0x10 and nothing else
-// changed. Other normal operations (e.g. 0x08, unique ID) can't stand in:
-// their replies pass authentication but carry no install data, so the
-// title's DNAS encryption then produces nothing.
+// normal (net start) authentication and 0x08 the unique-ID query. A real
+// install reply, connect or others, is the normal reply with byte 1 set to
+// 0x10 and nothing else changed. The install authentication only checks the
+// reply status, and the title's DNAS encryption afterwards reads nothing
+// from it, so a relabelled unique-ID reply serves as well when a title has
+// no normal capture.
 const (
-	opInstall = 0x10
-	opNormal  = 0x18
+	opInstall  = 0x10
+	opNormal   = 0x18
+	opUniqueID = 0x08
 )
 
 // loadReply finds the captured reply for req. An install query without a
-// capture of its own is answered with the title's normal reply, marked as an
-// install reply.
+// capture of its own is answered with the title's normal reply, or failing
+// that its unique-ID reply, marked as an install reply.
 func loadReply(gwDir string, req []byte, gameIDOff int) ([]byte, string, error) {
 	name, ok := packetName(req, gameIDOff)
 	if !ok {
@@ -135,16 +137,18 @@ func loadReply(gwDir string, req []byte, gameIDOff int) ([]byte, string, error) 
 		return packet, name, nil
 	}
 	if req[1] == opInstall {
-		normal := append([]byte(nil), req...)
-		normal[1] = opNormal
-		normalName, _ := packetName(normal, gameIDOff)
-		if packet, err = loadPacket(gwDir, normalName); err == nil {
-			if len(packet) < 2 {
-				return nil, name, errMalformed
+		for _, op := range []byte{opNormal, opUniqueID} {
+			other := append([]byte(nil), req...)
+			other[1] = op
+			otherName, _ := packetName(other, gameIDOff)
+			if packet, err = loadPacket(gwDir, otherName); err == nil {
+				if len(packet) < 2 {
+					return nil, name, errMalformed
+				}
+				packet[1] = opInstall
+				log.Printf("https: query %s: answering with %s as an install reply", name, otherName)
+				return packet, name, nil
 			}
-			packet[1] = opInstall
-			log.Printf("https: query %s: answering with %s as an install reply", name, normalName)
-			return packet, name, nil
 		}
 	}
 	log.Printf("https: query %s: no captured reply", name)

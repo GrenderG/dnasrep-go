@@ -85,3 +85,23 @@ func TestInstallQueryGetsInstallSuccessReply(t *testing.T) {
 		}
 	}
 }
+
+func TestInstallQueryFallsBackToUniqueIDCapture(t *testing.T) {
+	gw := t.TempDir()
+	if err := os.Mkdir(filepath.Join(gw, "packets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	request, _ := hex.DecodeString(installOthersRequest)
+	uniqueID := append([]byte(nil), request...)
+	uniqueID[1] = 0x08
+	name, _ := packetName(uniqueID, 0x1b)
+	captured := []byte{0x01, 0x08, 0x80, 0x06, 0xaa, 0xbb}
+	if err := os.WriteFile(filepath.Join(gw, "packets", name), captured, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{}
+	want := []byte{0x01, 0x10, 0x80, 0x06, 0xaa, 0xbb}
+	if got := s.othersReply(gw, request); !bytes.Equal(got, want) {
+		t.Errorf("install reply % x, want % x", got, want)
+	}
+}
